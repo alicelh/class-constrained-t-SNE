@@ -20,3 +20,6 @@ jupyter notebook
 ### How to use the method in your project
 The algorithm is implemented using C++. We use pybind11 to compile the codes and generate .pyd file for use in python environment. The C++ codes can be found in `src` folder. You can copy the cstsne folder in the example folder to your own python project and then import and use it as shown in the example.
 
+## Acknowledgments
+Our code is build upon [HDI](https://github.com/Nicola17/High-Dimensional-Inspector).
+
