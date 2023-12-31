@@ -47,7 +47,7 @@ def _kl_divergence(
   # Objective: C (sum of KL(P_d||Q_d) and KL(P_c||Q_c))
   if compute_error:
       kl_d = 2.0 * np.dot(P_d, np.log(np.maximum(P_d, MACHINE_EPSILON) / Q_d))
-      kl_c = (np.dot(P_c, np.log(np.maximum(P_c, MACHINE_EPSILON) / Q_c)) + lambda_para * np.dot(P_c, dist_c))/n_samples
+      kl_c = (np.dot(P_c, np.log(np.maximum(P_c, MACHINE_EPSILON) / Q_c)) + lambda_para * np.dot(P_c, dist_c) / n_classes)/n_samples
       print('kl_d ', kl_d, '| kl_c ',kl_c, '\n')
       kl_divergence = alpha * kl_d + (1.0-alpha) * kl_c
   else:
@@ -55,29 +55,25 @@ def _kl_divergence(
 
   # Gradient: dC/dy_d and dC/dy_c
   grad_d = np.ndarray((n_samples, n_components), dtype=y_d.dtype)
+  grad_d2 = np.ndarray((n_samples, n_components), dtype=y_d.dtype)
   grad_c = np.ndarray((n_classes, n_components), dtype=y_c.dtype)
 
   PQd = squareform((P_d - Q_d) * dist_d)
-  PQs = np.dot( np.transpose(P_s), dist_s)
-  PQc = squareform((P_c-Q_c)*dist_c)
-
-  PQp = squareform((P_p - Q_d) * dist_d)
-
-  PQtmp = P_s * dist_s
+  PQc = (P_c - Q_c) * dist_c_norm + lambda_para / n_classes * P_c
 
   for i in range(n_samples):
-      print(np.dot(P_s[i],(D_embedded[i]-C_embedded)) )
-      grad_d[i] = alpha * 4 * np.dot(np.ravel(PQd[i], order="K"), D_embedded[i] - D_embedded) + 2 * beta*np.dot(PQtmp[i],(D_embedded[i]-C_embedded))
+      grad_d[i] = np.dot(np.ravel(PQd[i], order="K"), D_embedded[i] - D_embedded)
+      grad_d2[i] = np.dot(PQc[i],(D_embedded[i] - C_embedded))
   for i in range(n_classes): 
-      grad_c[i] = 2 * beta * np.dot(np.transpose(PQtmp)[i],(C_embedded[i]-D_embedded))
-
+      grad_c[i] = np.dot(np.transpose(PQc)[i],(C_embedded[i]-D_embedded))
 
   grad_d = grad_d.ravel()
+  grad_d2 = grad_d2.ravel()
   grad_c = grad_c.ravel()
 
-  # fot t-SNE
-  grad_d = grad_d
-  grad_c = grad_c
+  # degree of freedom is 1
+  grad_d = alpha * 4 * grad_d + (1.0 - alpha) * 2 * grad_d2 / n_samples
+  grad_c = (1.0 - alpha) * 2 * grad_c
 
   return kl_divergence, grad_d, grad_c
 
@@ -235,7 +231,7 @@ class csTSNE():
       "n_iter_check": self._N_ITER_CHECK,
       "min_grad_norm": self.min_grad_norm,
       "learning_rate": self.learning_rate,
-      "args": [P_d, P_c, n_samples, n_classes, self.n_components],
+      "args": [self.P_d, self.P_c, n_samples, n_classes, self.n_components],
       "n_iter_without_progress": self._EXPLORATION_N_ITER,
       "n_iter": self._EXPLORATION_N_ITER,
       "momentum": 0.5,
